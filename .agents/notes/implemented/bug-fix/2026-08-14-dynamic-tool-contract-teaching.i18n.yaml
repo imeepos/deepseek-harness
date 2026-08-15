@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-14-dynamic-tool-contract-teaching.md
+2026-08-14-dynamic-tool-contract-teaching.md: ce3fff2bc1d402c1ab59d91d7663393adca4979d
+2026-08-14-dynamic-tool-contract-teaching.zh.md: f6c2a64a37fc81815902e9a4dd4ade9545c72450

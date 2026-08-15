@@ -28,10 +28,13 @@ export const HOST_BUILTIN_INSPECTION = [
   },
   {
     name: 'harness',
-    description: 'Host helpers for Package-private Client RPC and model-visible dynamic Tools.',
+    description: 'Host helpers for Package-private Client RPC and model-visible dynamic Tools. cordis_define parses a body without running it, so defineTool validates the definition contract only when apply runs during activation.',
     signatures: [
       'harness.handle(method: string, handler: (args: JsonValue) => JsonValue | Promise<JsonValue>): () => void',
-      'harness.defineTool(definition: ToolDefinition): ToolDefinition',
+      'harness.defineTool(options): ToolDefinition with required name, description, parameters, execute, output',
+      '  parameters: { [name]: JSONSchema } — a name→schema map, not a wrapped JSON-Schema object',
+      '  execute(args, exec): Promise<JsonValue> — the business result, JSON only',
+      '  output: { schema, render(args, value), presentationMeta? } — render is REQUIRED and returns a content-block array',
       'harness.registerTool(ctx: Context, tool: ToolDefinition): () => void',
     ],
   },
