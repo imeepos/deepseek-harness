@@ -61,6 +61,8 @@ vm 沙箱隔离全局变量，但不是安全边界：Node 全局变量不存在
 
 ## 已知限制与暂缓事项
 
+- **动态贡献是进程全局的，不是按会话隔离的。** 每个 host 半都挂在无 scope 的 `cordis-dynamic` group（`requireGroup`）之下，因此包注册的任何东西——`harness` 工具、`ctx.systemPrompt.context` 快照节、`ctx.provide` 服务——都会落进全局注册层，对进程里的每个会话可见；scope 过滤只在读取时生效，注册时从不生效。这与单用户信任模型一致（一个部署、一个用户、所有会话都属于该用户），也正是让跨会话记忆读取这类共享工具包能工作的原因。需要把某会话的动态注册隔离出来的多会话 host，必须把 runner 放进按会话建的 scope，并声明哪些贡献是有意共享的——这是需要产品决策的行为变更，而非注册表 bug。
+
 - **run 成功不等于 UI 渲染成功。** 只要作答页面**已装载**浏览器半，`run` 就会返回；React 是随后才渲染的，因此一个抛异常的组件根本不可能出现在 run 的回执里。该失败经 `reportRenderFailure` 浮现，并通过 `cordis_inspect what:"temporary"` 读回；run 的结果会把这一点说出来，而不是暗示成功。
 
 - 带浏览器半的包在**没有页面连接的地方会挂起**——headless 与 ACP（Agent Client Protocol）部署会把这次 run 一直挂到提问的轮次被取消，因为转发事件不回报谁收到了它。只有 host 半的包不受影响。

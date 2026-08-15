@@ -61,6 +61,8 @@ A host half that registers tools changes the next request's tool view, which inv
 
 ## Known Limitations and Deferred Work
 
+- **Dynamic contributions are process-global, not session-scoped.** Every host half hangs under the unscoped `cordis-dynamic` group (`requireGroup`), so anything a package registers — a `harness` Tool, a `ctx.systemPrompt.context` snapshot section, a `ctx.provide` service — lands on a global registry layer and is visible to every session in the process; scope filters act only at read time, never at registration. This matches the single-user trust model (one deployment, one user, all sessions are that user's) and is what lets a shared-tools package like a cross-session memory reader work at all. A multi-session host that must isolate one session's dynamic registrations would need to place the runner under a per-session scope and declare which contributions are meant to be shared — a behavioral change requiring a product decision, not a registry bug.
+
 - **A successful run does not mean the UI rendered.** `run` returns once the answering page has LOADED the browser half; React renders afterwards, so a component that throws cannot possibly appear in the run receipt. The failure surfaces through `reportRenderFailure` and is read back with `cordis_inspect what:"temporary"`; the run result says so rather than implying success.
 
 - A package with a browser half **suspends where no page is connected** — headless and ACP deployments hold the run until the asking turn is cancelled, because a forwarded event reports nothing about who received it. Host-only packages are unaffected.
