@@ -56,11 +56,11 @@
 
 #### 模型看到的内容
 
-每个 assistant 工具调用都会在参数中保留整个替换列表。成功时原样返回 `Updated todo list: <pending> pending, <inProgress> in progress, <completed> completed.`。稳定失败文本为 ``Error: invalid todo: `content` must be a non-empty string``、`Error: invalid todos: duplicate content "<content>"`、`Error: todo_write requires an owning agent session`，以及——仅在部署设置了 `allowParallelInProgress: false` 时——`Error: invalid todos: at most one task may be in_progress (got <n>)`。完整 `todo/write` 会话事件是 UI 与回放状态，而非第二条模型消息。
+每个 assistant 工具调用都会在参数中保留整个替换列表。成功时原样返回 `Updated todo list: <pending> pending, <inProgress> in progress, <completed> completed.`。稳定失败文本为 ``Error: invalid todo: `content` must be a non-empty string``、`Error: invalid todos: duplicate content "<content>"`、`Error: todo_write requires an owning agent session`，以及——仅在部署设置了 `allowParallelInProgress: false` 时——`Error: invalid todos: at most one task may be in_progress (got <n>)`。完整 `todo/write` 会话事件是 UI 与回放状态，而非第二条模型消息。当压缩遮蔽了最新一次写入时，替换检查点会以 `<todo-state>` 块携带该列表（见 [compaction-basic](../../compaction/compaction-basic/README.md)）；仍保留在近期尾部的写入不附加任何内容。
 
 #### Token 影响
 
-token 用量会随模型每次提交的完整列表增长，且这些调用参数会保留到压缩（compaction）。结果本身很小，且形状固定。
+token 用量会随模型每次提交的完整列表增长，且这些调用参数会保留到压缩（compaction）；检查点的 `<todo-state>` 存根只重新携带最新列表。结果本身很小，且形状固定。
 
 #### KV Cache 影响
 

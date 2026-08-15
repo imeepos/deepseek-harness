@@ -50,7 +50,9 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('compaction: a long session compa
     agent.followup(createUserMessage({
       content: [{
         type: 'text',
-        text: 'Read file1.txt, file2.txt, file3.txt, and file4.txt one at a '
+        text: 'First record the four reading tasks below with one todo_write call '
+        + '(read file1.txt; read file2.txt; read file3.txt; read file4.txt), and keep the list '
+        + 'updated as you go. Then read file1.txt, file2.txt, file3.txt, and file4.txt one at a '
         + 'time using cat (a separate bash command for each). After reading all four, tell me how '
         + 'many files you read and the number mentioned in file1.txt.',
       }], source: { kind: 'user' } }))
@@ -73,6 +75,12 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('compaction: a long session compa
       return se.type === 'user/message' && typeof se.surfaceOp === 'object' && se.surfaceOp !== null
     })
     expect(replaceNode).toBeDefined()
+
+    // The todo list written before the compacted span survives inside the
+    // replacement checkpoint as a <todo-state> stub of the latest snapshot.
+    const replacementJson = JSON.stringify(replaceNode)
+    expect(replacementJson).toContain('<todo-state>')
+    expect(replacementJson).toContain('file4.txt')
 
     // The summary shadowed real older nodes (the surface shrank vs. the raw
     // message-producing event count).

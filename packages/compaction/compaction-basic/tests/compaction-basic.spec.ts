@@ -1878,3 +1878,108 @@ describe('automatic listener and loader composition', () => {
     expect(await recover(ctx, agent(session, MODEL), overflow())).toBe(false)
   })
 })
+
+describe('checkpoint todo state', () => {
+  const TODOS = [
+    { content: 'inventory local packages', status: 'completed' },
+    { content: 'write the report', status: 'in_progress' },
+    { content: 'push the branch', status: 'pending' },
+  ]
+
+  /** Three routed tool turns; `todos` is written inside the given turn's tool step. */
+  function toolConversationWithTodos(writeInTurn: number, todos: typeof TODOS | [] = TODOS): Session {
+    const session = Session.create(SessionId(`tools-with-todos-${writeInTurn}-${todos.length}`))
+    for (let turn = 1; turn <= 3; turn += 1) {
+      const callId = CallId(`call-${turn}`)
+      session.append('turn/start', { turn })
+      session.append('user/message', createUserMessage({
+        content: [{ type: 'text', text: `request ${turn} `.repeat(300) }],
+        source: { kind: 'user' },
+      }), { surfaceOp: 'append' })
+      session.append('step/start', { turn, step: 1 })
+      if (turn === 1) {
+        session.append('request/header', {
+          header: { config: { provider: MODEL, model: MODEL } },
+          reason: 'initial',
+        })
+      }
+      session.append('assistant/message', {
+        turn,
+        step: 1,
+        message: createMessage({
+          role: 'assistant',
+          content: [
+            { type: 'text', text: `calling ${turn} `.repeat(300) },
+            { type: 'tool-call', id: callId, name: 'todo_write', arguments: '{}' },
+          ],
+          source: {
+            kind: 'model',
+            ...{ provider: MODEL, model: MODEL },
+          },
+        }),
+      }, { surfaceOp: 'append' })
+      session.append('tool/call', { turn, step: 1, callId, name: 'todo_write', arguments: '{}' })
+      if (turn === writeInTurn) {
+        session.append('todo/write', { todos })
+      }
+      session.append('tool/result', {
+        turn,
+        step: 1,
+        message: createToolResultMessage({
+          callId,
+          content: [{ type: 'text', text: `result ${turn} `.repeat(300) }],
+          isError: false,
+        }),
+      }, { surfaceOp: 'append' })
+      session.append('step/end', { turn, step: 1 })
+      session.append('turn/end', { turn, reason: { kind: 'completed' } })
+    }
+    session.append('turn/start', { turn: 4 })
+    return session
+  }
+
+  async function compactFirstTwoTurns(session: Session): Promise<CompactionResult> {
+    const compact = service()
+    const nodes = [...session.surface.nodes]
+    return compact.compactRegion(nodes[0]!, nodes[5]!, agent(session, MODEL), SIGNAL)
+  }
+
+  it('restores a shadowed todo list as a checkpoint stub and replays identically', async () => {
+    const session = toolConversationWithTodos(2)
+    await compactFirstTwoTurns(session)
+
+    const head = session.deriveMessages()[0]!
+    expect(head.content.at(-1)).toEqual({
+      type: 'text',
+      text: '<todo-state>\n- [completed] inventory local packages\n- [in_progress] write the report\n- [pending] push the branch\n</todo-state>',
+    })
+    expect(head.content.at(-2)).toEqual({ type: 'text', text: '</compacted-summary>' })
+    const replay = Session.create(SessionId('replay'), [...session.events])
+    expect(replay.deriveMessages()).toEqual(session.deriveMessages())
+  })
+
+  it('adds no stub when the latest todo write stays visible in the retained tail', async () => {
+    const session = toolConversationWithTodos(3)
+    await compactFirstTwoTurns(session)
+
+    const head = session.deriveMessages()[0]!
+    expect(head.content.at(-1)).toEqual({ type: 'text', text: '</compacted-summary>' })
+    expect(session.deriveMessages().some(message => JSON.stringify(message).includes('<todo-state>'))).toBe(false)
+  })
+
+  it('adds no stub when no todo list was ever written', async () => {
+    const session = toolConversationWithTodos(0)
+    await compactFirstTwoTurns(session)
+
+    const head = session.deriveMessages()[0]!
+    expect(head.content.at(-1)).toEqual({ type: 'text', text: '</compacted-summary>' })
+  })
+
+  it('adds no stub for an empty todo snapshot', async () => {
+    const session = toolConversationWithTodos(2, [])
+    await compactFirstTwoTurns(session)
+
+    const head = session.deriveMessages()[0]!
+    expect(head.content.at(-1)).toEqual({ type: 'text', text: '</compacted-summary>' })
+  })
+})
