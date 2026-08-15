@@ -385,7 +385,7 @@ Run a read-only query explicitly declared by an Inspect Provider. platform, prov
       "description": "Exact method name declared by the Provider manifest."
     },
     "input": {
-      "description": "Optional query input; it must satisfy the method input schema."
+      "description": "Optional query input; it must satisfy the method input schema. Send it as a JSON object; a JSON-encoded string of that object is also accepted."
     }
   },
   "required": [
