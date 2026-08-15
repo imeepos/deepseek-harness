@@ -31,6 +31,24 @@ function requireAgent(exec: ToolExecution): Agent {
   return exec.agent
 }
 
+/**
+ * Decode a model-supplied inspect query input. The `input` parameter is
+ * declared `type: 'json'`, which reaches providers as an untyped property, and
+ * models on at least the anthropic-messages API (observed: GLM-5.2) serialize
+ * untyped properties as JSON-encoded strings, so a string carries the same
+ * query as the object it encodes.
+ * @param input - arguments value for the `input` parameter, however encoded.
+ * @returns the decoded input for provider-schema validation.
+ */
+export function decodeInspectInput(input: JsonValue | undefined): JsonValue | undefined {
+  if (typeof input !== 'string') return input
+  try {
+    return JSON.parse(input) as JsonValue
+  } catch (error: unknown) {
+    throw new Error(`input must be a JSON value or a JSON-encoded string: ${(error as Error).message}`)
+  }
+}
+
 /** Register the Cordis tools and explicit `@pluginId` context injection. */
 export function apply(ctx: Context): void {
   ctx.systemPrompt.section({ name: 'tool:cordis', order: 115, text: CORDIS_SYSTEM_PROMPT })
@@ -73,7 +91,7 @@ export function apply(ctx: Context): void {
       platform: { type: 'string', required: true, enum: ['host', 'client'], description: 'Runtime platform that owns the Provider.' },
       provider: { type: 'string', required: true, description: 'Exact Provider ID returned by cordis_inspect_list.' },
       method: { type: 'string', required: true, description: 'Exact method name declared by the Provider manifest.' },
-      input: { type: 'json', description: 'Optional query input; it must satisfy the method input schema.' },
+      input: { type: 'json', description: 'Optional query input; it must satisfy the method input schema. Send it as a JSON object; a JSON-encoded string of that object is also accepted.' },
     },
     output: {
       schema: { type: 'json' },
@@ -84,7 +102,7 @@ export function apply(ctx: Context): void {
         args.platform,
         args.provider,
         args.method,
-        args.input,
+        decodeInspectInput(args.input),
         requireAgent(exec),
         exec.signal,
       )
