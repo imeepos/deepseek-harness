@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { sandboxDefineTool } from '../src/guard.ts'
-import { syntaxErrorContext } from '../src/sandbox.ts'
+import { HOST_BUILTIN_INSPECTION, syntaxErrorContext } from '../src/sandbox.ts'
 import { AGENT_A, call, CONTENT_OUTPUT_CODE, mount, setup, text, running } from './helpers.ts'
 
 /**
@@ -214,5 +214,17 @@ describe('parse failures teach the fix', () => {
     // own SyntaxError branch classifies it.
     await expect(mount(harness, 'throw new SyntaxError(\'user-crafted\')'))
       .rejects.toThrow('user-crafted')
+  })
+})
+
+describe('builtin inspection catalog teaches the defineTool contract', () => {
+  it('pins the harness signatures a model reads before writing a dynamic Tool', () => {
+    const harness = HOST_BUILTIN_INSPECTION.find(entry => entry.name === 'harness')
+    expect(harness).toBeDefined()
+    const signatures = harness!.signatures.join('\n')
+    expect(signatures).toContain('required name, description, parameters, execute, output')
+    expect(signatures).toContain('name→schema map, not a wrapped JSON-Schema object')
+    expect(signatures).toContain('render is REQUIRED and returns a content-block array')
+    expect(harness!.description).toContain('validates the definition contract only when apply runs')
   })
 })

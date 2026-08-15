@@ -351,6 +351,25 @@ Arguments and return values must be lossless JSON. Do not pass functions, React 
 
 Host can use `harness` to register a Tool callable in the next model step. First query the current `harness` signature with Host `Builtin.listBuiltins`, then inspect existing Tool names and schemas with `Tool.listTools` to avoid conflicts.
 
+`harness.defineTool` requires every field below — a missing `output.render` is the most common failure, and it surfaces only when `apply` runs during activation (`cordis_define` parses the body without executing it):
+
+```js
+const tool = harness.defineTool({
+  name: 'my_tool',
+  description: 'One sentence the model reads.',
+  // A name→schema MAP — not { type: 'object', properties: ... }.
+  parameters: { count: { type: 'number', description: 'How many.' } },
+  async execute(args) {
+    return { doubled: args.count * 2 }   // JSON only
+  },
+  output: {
+    schema: { type: 'object' },
+    // REQUIRED: returns an ARRAY of content blocks.
+    render: (args, value) => [{ type: 'text', text: `doubled: ${value.doubled}` }],
+  },
+})
+```
+
 Tool arguments and return values must be JSON-compatible. `execute` owns the business result; render and presentation own only what the model and native UI see. Tool registration must belong to the current Plugin Fiber so it is automatically removed after stop or update.
 
 ## Handle internal live data
