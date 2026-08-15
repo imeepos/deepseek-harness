@@ -17,7 +17,7 @@ import {
 import type { CompactionResult } from '@deepseek-ai/dsh-compaction'
 import type { CommandId } from '@deepseek-ai/dsh-commands/brand'
 import { createUserMessage, errorChain } from '@deepseek-ai/dsh-llm'
-import type { Message, UserMessage } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, Message, UserMessage } from '@deepseek-ai/dsh-llm'
 import type { TokenMeasurement, TokenMeter } from '@deepseek-ai/dsh-token-meter'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -201,6 +201,7 @@ export async function compactSurfaceRegion(
     const prepared = prepareCompaction(dependencies, session, selection)
     const summarized = await summarizeCompaction(
       dependencies,
+      session,
       prepared,
       agent,
       compactionId,
@@ -359,6 +360,7 @@ function prepareCompaction(
 /** Run the summarizer and frame its replacement checkpoint. */
 async function summarizeCompaction(
   dependencies: RegionDependencies,
+  session: Session,
   prepared: PreparedCompaction,
   agent: Agent,
   compactionId: CompactionResult['compactionId'],
@@ -366,8 +368,9 @@ async function summarizeCompaction(
   signal?: AbortSignal,
 ): Promise<SummarizedCompaction> {
   const summaryResult = await dependencies.summarize(prepared.input, agent, signal)
+  const todoState = shadowedTodoStateBlock(session, prepared.end)
   const checkpointMessage = createUserMessage({
-    content: frameSummary(summaryResult.summary),
+    content: [...frameSummary(summaryResult.summary), ...todoState === undefined ? [] : [todoState]],
     source: compactCheckpointSource(compactionId, sourceCommandId),
   })
   const framedSummaryTokenCount = dependencies.meter.estimateMessage(checkpointMessage)
@@ -381,6 +384,33 @@ async function summarizeCompaction(
     ...summaryResult,
     checkpointMessage,
   }
+}
+
+/**
+ * The latest whole-list todo snapshot as one checkpoint text block, when the
+ * write that produced it is shadowed by the compacted span. A `todo/write`
+ * sits between its tool call and result, and a balanced cutoff never splits
+ * that pair, so the write is shadowed exactly when its seq is at or below the
+ * last shadowed surface node; a write above it stays visible in the retained
+ * tail and needs no stub.
+ * @param session - session whose log supplies the latest todo snapshot.
+ * @param end - inclusive last surface-node seq of the compacted span.
+ * @returns the `<todo-state>` text block, or `undefined` when the latest list
+ * remains visible or no list exists.
+ */
+function shadowedTodoStateBlock(
+  session: Session,
+  end: number,
+): Extract<ContentBlock, { type: 'text' }> | undefined {
+  for (let index = session.events.length - 1; index >= 0; index -= 1) {
+    // oxlint-disable-next-line typescript/no-non-null-assertion
+    const event = session.events[index]!
+    if (event.type !== 'todo/write') continue
+    if (event.seq > end || event.data.todos.length === 0) return undefined
+    const lines = event.data.todos.map(todo => `- [${todo.status}] ${todo.content}`)
+    return { type: 'text', text: `<todo-state>\n${lines.join('\n')}\n</todo-state>` }
+  }
+  return undefined
 }
 
 /** Reject a summary prepared against any earlier surface generation. */

@@ -56,11 +56,11 @@ Prefix-stable while the definition and visibility are unchanged. Plugin lifecycl
 
 #### What the model sees
 
-Each assistant tool call retains the entire replacement list in its arguments. Success returns exactly `Updated todo list: <pending> pending, <inProgress> in progress, <completed> completed.` Stable failures are ``Error: invalid todo: `content` must be a non-empty string``, `Error: invalid todos: duplicate content "<content>"`, `Error: todo_write requires an owning agent session`, and — only where the deployment set `allowParallelInProgress: false` — `Error: invalid todos: at most one task may be in_progress (got <n>)`. The full `todo/write` session event is UI and replay state, not a second model message.
+Each assistant tool call retains the entire replacement list in its arguments. Success returns exactly `Updated todo list: <pending> pending, <inProgress> in progress, <completed> completed.` Stable failures are ``Error: invalid todo: `content` must be a non-empty string``, `Error: invalid todos: duplicate content "<content>"`, `Error: todo_write requires an owning agent session`, and — only where the deployment set `allowParallelInProgress: false` — `Error: invalid todos: at most one task may be in_progress (got <n>)`. The full `todo/write` session event is UI and replay state, not a second model message. When compaction shadows the latest write, the replacement checkpoint carries the list as a `<todo-state>` block ([compaction-basic](../../compaction/compaction-basic/README.md)); a write still visible in the retained tail adds nothing.
 
 #### Token effect
 
-Token growth scales with every full list the model submits, and those call arguments remain until compaction. The result itself is small and fixed-shape.
+Token growth scales with every full list the model submits, and those call arguments remain until compaction; the checkpoint's `<todo-state>` stub re-carries only the latest list. The result itself is small and fixed-shape.
 
 #### KV Cache effect
 
